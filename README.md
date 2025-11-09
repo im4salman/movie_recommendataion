@@ -59,72 +59,125 @@ MovieRecommendation/
 └── README.md                 # This file
 ```
 
-## 🚀 Setup Instructions
+## 🚀 Quick Start Guide
 
-### Backend Setup
+### Prerequisites
+- Python 3.8 or higher
+- Node.js 14 or higher
+- npm or yarn
+- Internet connection (for cloud database)
 
-1. **Navigate to backend directory:**
+### Complete Setup & Run Instructions
+
+#### Step 1: Backend Setup
+
+1. **Navigate to the project root directory:**
+```bash
+cd /path/to/MovieRecommendatiion
+```
+
+2. **Go to backend directory:**
 ```bash
 cd backend
 ```
 
-2. **Create virtual environment:**
+3. **Create a Python virtual environment:**
 ```bash
 python3 -m venv venv
 ```
 
-3. **Activate virtual environment:**
+4. **Activate the virtual environment:**
 
-**macOS/Linux:**
+**On macOS/Linux:**
 ```bash
 source venv/bin/activate
 ```
 
-**Windows:**
+**On Windows:**
 ```bash
 venv\Scripts\activate
 ```
 
-4. **Install dependencies:**
+5. **Install all Python dependencies:**
 ```bash
 pip install -r requirements.txt
 ```
 
-5. **Import movie data to database:**
+6. **Import movie data into database:**
 ```bash
 python utils/data_loader.py
 ```
 
 This will:
-- Create all database tables in PostgreSQL
-- Import 1000 movies from CSV
-- Show progress and summary
+- Create all necessary database tables in PostgreSQL
+- Import 1000 movies from `imdb_top_1000.csv`
+- Show progress and import summary
+- Take approximately 1-2 minutes
 
-6. **Run the backend:**
+7. **Start the Flask backend server:**
 ```bash
 python app.py
 ```
 
-Backend will be available at: **http://localhost:5000**
+✅ Backend should now be running at: **http://localhost:5000**
 
-### Frontend Setup
-
-1. **Open a new terminal and navigate to frontend directory:**
-```bash
-cd frontend
+You should see:
+```
+* Running on http://127.0.0.1:5000
+* Debug mode: on
 ```
 
-2. **Install dependencies:**
+**Keep this terminal window open!**
+
+#### Step 2: Frontend Setup
+
+1. **Open a NEW terminal window** (keep backend running)
+
+2. **Navigate to the frontend directory:**
+```bash
+cd /path/to/MovieRecommendatiion/frontend
+```
+
+3. **Install Node.js dependencies:**
 ```bash
 npm install
 ```
 
-3. **Start the development server:**
+This will install React and all required packages (takes 1-2 minutes).
+
+4. **Start the React development server:**
 ```bash
 npm start
 ```
 
-Frontend will open in browser at: **http://localhost:3000**
+✅ Frontend will automatically open in your browser at: **http://localhost:3000**
+
+If it doesn't open automatically, manually visit: **http://localhost:3000**
+
+**Keep this terminal window open too!**
+
+### Verification
+
+You should now have:
+- ✅ Backend running on http://localhost:5000
+- ✅ Frontend running on http://localhost:3000
+- ✅ Browser showing the Movie Recommendation app
+
+#### Quick Test
+
+1. You'll see a login page - enter any user ID (e.g., "user123")
+2. Click "Browse Movies" to see the movie catalog
+3. Search for a movie or browse the list
+4. Click "Watch" on any movie to simulate watching
+5. Rate the movie when prompted
+6. After watching/rating 3+ movies, go to "Recommendations" to see personalized suggestions
+
+### Stopping the Application
+
+To stop the servers:
+1. Go to each terminal window
+2. Press `Ctrl + C` (or `Cmd + C` on Mac)
+3. Deactivate the Python virtual environment: `deactivate`
 
 ## 🎬 Using the Application
 
