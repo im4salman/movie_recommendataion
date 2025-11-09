@@ -1,0 +1,1837 @@
+# Movie Recommendation System - Complete Requirements Document
+
+## PROJECT OVERVIEW
+
+Build a movie recommendation web application for a college project with React frontend and Python Flask backend that uses BOTH watch history and ratings to generate personalized recommendations.
+
+### Core Functionality
+Users can:
+1. Browse and search movies from a provided dataset
+2. Click "Watch" on movies (simulated - records watch event with metadata)
+3. Rate movies (1-5 stars) - optional but encouraged after watching
+4. Get personalized recommendations based on watch history + ratings using content-based filtering
+
+### Why This Approach?
+This system combines **IMPLICIT feedback** (what users watch) and **EXPLICIT feedback** (how users rate) for better accuracy - mimicking industry standards like Netflix and YouTube.
+
+---
+
+## TECHNOLOGY STACK
+
+### Frontend
+- **Framework**: React.js (latest version)
+- **Styling**: CSS or Tailwind CSS
+- **HTTP Client**: Axios
+- **Routing**: React Router
+
+### Backend
+- **Language**: Python 3.8+
+- **Framework**: Flask
+- **Libraries**:
+  - Flask-CORS (cross-origin requests)
+  - pandas (data manipulation - optional)
+  - python-dotenv (environment variables - optional)
+
+### Data Storage
+- **movies.json** - Movie dataset
+- **ratings.json** - User ratings (explicit feedback)
+- **watch_history.json** - Watch events (implicit feedback)
+- **user_profiles.json** - Optional caching
+
+---
+
+## DATASET STRUCTURE
+
+### Input Dataset (CSV Format)
+The provided dataset contains these columns:
+- `Poster_Link` - Movie poster URL
+- `Series_Title` - Movie name
+- `Released_Year` - Release year
+- `Certificate` - Rating certificate (PG-13, R, etc.)
+- `Runtime` - Duration
+- `Genre` - Comma-separated genres
+- `IMDB_Rating` - Rating out of 10
+- `Overview` - Movie description/summary
+- `Meta_score` - Metacritic score
+- `Director` - Director name
+- `Star1, Star2, Star3, Star4` - Main actors
+- `No_of_votes` - Vote count
+- `Gross` - Box office earnings
+
+### Required: Convert to movies.json
+Transform the CSV into structured JSON with this format:
+
+```json
+{
+  "movies": [
+    {
+      "id": "inception_2010",
+      "title": "Inception",
+      "year": 2010,
+      "certificate": "PG-13",
+      "runtime": "148 min",
+      "genres": ["Sci-Fi", "Thriller", "Action"],
+      "imdb_rating": 8.8,
+      "overview": "A thief who steals corporate secrets...",
+      "meta_score": 74,
+      "director": "Christopher Nolan",
+      "star1": "Leonardo DiCaprio",
+      "star2": "Joseph Gordon-Levitt",
+      "star3": "Ellen Page",
+      "star4": "Tom Hardy",
+      "no_of_votes": 2000000,
+      "gross": "292,576,195",
+      "poster_link": "https://..."
+    }
+  ]
+}
+```
+
+**Requirements**:
+- Include minimum 40-50 movies
+- Ensure diverse genres
+- Include multiple movies from same directors (for pattern testing)
+- Include multiple movies with same actors
+
+---
+
+## CORE FEATURES SPECIFICATION
+
+### 1. Browse Movies Page (Home Page)
+
+#### Layout Components
+- **Header**: App title "MovieMatch", navigation menu
+- **Search Bar**: Search by movie title (real-time filtering)
+- **Genre Filter**: Multi-select buttons (Action, Comedy, Drama, Horror, Sci-Fi, Romance, Thriller)
+- **Movie Grid**: Responsive 3-4 column layout
+- **Footer**: Optional
+
+#### Movie Card Design
+Each card displays:
+- Movie poster image
+- Title
+- Year and IMDB rating (e.g., "2010 | ⭐ 8.8")
+- Genre tags (pills/badges)
+- **Two action buttons**:
+  - `[▶ Watch]` - Primary, prominent button
+  - `[⭐ Rate]` - Star rating widget
+- Hover effect revealing brief description
+- Visual indicators:
+  - "✓ Watched" badge for watched movies
+  - Filled stars for rated movies
+
+#### Functionality Requirements
+- Real-time search filtering
+- Multi-genre selection
+- "Clear Filters" button
+- Smooth transitions and hover effects
+- Loading states for API calls
+
+---
+
+### 2. Watch Functionality (Critical Feature)
+
+#### Watch Modal/Overlay
+When user clicks "Watch" button:
+
+1. **Display modal** simulating movie playback:
+```
+┌─────────────────────────────────────┐
+│  🎬 Now Playing: Inception          │
+│                                     │
+│  [Large Movie Poster or Video Icon] │
+│                                     │
+│  ⏸ [Pause]  ⏹ [Stop]  ⏭ [Skip]   │
+│                                     │
+│  ━━━━━━━━━━━━━━━━━━━━━ 100%        │
+│  148 minutes                        │
+│                                     │
+│  [Mark as Completed] button         │
+└─────────────────────────────────────┘
+```
+
+2. **Record watch event** to backend:
+```
+POST /api/watch
+{
+  "user_id": "user123",
+  "movie_id": "inception_2010",
+  "movie_metadata": {
+    "title": "Inception",
+    "genres": ["Sci-Fi", "Thriller", "Action"],
+    "director": "Christopher Nolan",
+    "stars": ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Ellen Page", "Tom Hardy"],
+    "imdb_rating": 8.8,
+    "year": 2010
+  },
+  "completed": true,
+  "watch_timestamp": "2024-11-09T14:30:00"
+}
+```
+
+3. **Post-watch rating prompt**:
+```
+┌──────────────────────────────────┐
+│  How would you rate Inception?   │
+│                                  │
+│  ⭐⭐⭐⭐⭐ (clickable stars)   │
+│                                  │
+│  [Submit Rating]  [Skip]         │
+└──────────────────────────────────┘
+```
+
+4. **Store in watch_history.json** with complete metadata
+
+---
+
+### 3. Rating System
+
+#### Star Rating Widget
+- 5 interactive stars (hollow → filled on selection)
+- Hover preview effect
+- Click to submit
+- Can rate without watching (if user knows the movie)
+- Can update existing ratings
+- Visual feedback on submission
+
+#### Rating Submission
+```
+POST /api/rate
+{
+  "user_id": "user123",
+  "movie_id": "inception_2010",
+  "rating": 5,
+  "timestamp": "2024-11-09T14:35:00"
+}
+```
+
+---
+
+### 4. Recommendations Page
+
+#### Section 1: User Activity Summary
+```
+┌─────────────────────────────────────────┐
+│  Your Activity                          │
+│  ─────────────────────────────────────  │
+│  📊 Movies Watched: 8                   │
+│  ⭐ Movies Rated: 6                     │
+│  🎯 Ready for personalized picks!       │
+│                                         │
+│  [Refresh Recommendations]              │
+└─────────────────────────────────────────┘
+```
+
+#### Section 2: Watch History Display
+```
+┌─────────────────────────────────────────────┐
+│  Your Watch History                         │
+│  ─────────────────────────────────────────  │
+│  (Horizontal scroll of movie cards)         │
+│  [Inception ⭐⭐⭐⭐⭐]                     │
+│  [Dark Knight ⭐⭐⭐⭐⭐]                  │
+│  [Interstellar ⭐⭐⭐⭐☆]                 │
+│  [Shutter Island ✓] (watched, not rated)   │
+└─────────────────────────────────────────────┘
+```
+
+#### Section 3: Personalized Recommendations
+```
+┌──────────────────────────────────────────────┐
+│  🎯 Recommended For You                      │
+│  ───────────────────────────────────────────│
+│                                              │
+│  Movie Grid (same design as browse page)     │
+│                                              │
+│  Each card includes:                         │
+│  💡 "Because you watched Sci-Fi movies       │
+│      by Christopher Nolan"                   │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+#### Minimum Requirement Handling
+If user has < 3 interactions:
+```
+⚠️ Watch or rate at least 3 movies to get personalized recommendations!
+
+Progress: 2/3 interactions
+
+[Browse Movies] button
+```
+
+---
+
+## RECOMMENDATION ALGORITHM - DETAILED SPECIFICATION
+
+### Algorithm Type
+**Enhanced Multi-Factor Content-Based Filtering**
+
+### Scoring Components
+1. **Genre Matching** - 40% weight
+2. **Director Matching** - 25% weight
+3. **Actor Matching** - 20% weight
+4. **Quality Score (IMDB Rating)** - 15% weight
+
+---
+
+### Step 1: Calculate Interaction Scores
+
+Determine how much each user interaction should influence recommendations:
+
+```python
+def calculate_interaction_score(movie, user_id):
+    """
+    Assigns weight to user-movie interaction
+    Returns: float between -0.5 and 1.0
+    """
+    watched = check_if_watched(user_id, movie)
+    rating = get_rating(user_id, movie)
+    
+    # Combined interactions (strongest signals)
+    if watched and rating:
+        if rating == 5:
+            return 1.0      # Strongest positive
+        elif rating == 4:
+            return 0.8      # Strong positive
+        elif rating == 3:
+            return 0.5      # Neutral/mild positive
+        elif rating == 2:
+            return -0.3     # Mild negative (avoid)
+        else:  # rating == 1
+            return -0.5     # Strong negative (definitely avoid)
+    
+    # Implicit feedback only
+    elif watched and not rating:
+        return 0.5          # Moderate positive signal
+    
+    # Explicit feedback only
+    elif rating and not watched:
+        if rating >= 4:
+            return 0.6      # Positive signal
+        elif rating == 3:
+            return 0.3      # Mild positive
+        else:
+            return -0.3     # Negative signal
+    
+    return 0  # No interaction
+```
+
+**Interaction Weight Table**:
+| Interaction Type | Weight | Interpretation |
+|-----------------|--------|----------------|
+| Watched + Rated 5★ | 1.0 | Loved it |
+| Watched + Rated 4★ | 0.8 | Liked it |
+| Watched + Rated 3★ | 0.5 | Okay |
+| Watched only | 0.5 | Interested |
+| Rated 5★ only | 0.6 | Knows & loves |
+| Watched + Rated 2★ | -0.3 | Didn't like |
+| Watched + Rated 1★ | -0.5 | Hated it |
+
+---
+
+### Step 2: Build User Preference Profile
+
+Extract weighted preferences from all positive interactions:
+
+```python
+def build_user_profile(user_id):
+    """
+    Creates comprehensive user preference profile
+    Returns: dict with weighted genre/director/actor preferences
+    """
+    # Get all user interactions
+    watched_movies = get_watch_history(user_id)
+    ratings = get_user_ratings(user_id)
+    
+    # Initialize weighted preferences
+    genre_weights = {}
+    director_weights = {}
+    actor_weights = {}
+    
+    # Process each interaction
+    for movie in watched_movies:
+        interaction_score = calculate_interaction_score(movie, user_id)
+        
+        # Only consider positive interactions
+        if interaction_score > 0:
+            # Weight genres
+            for genre in movie.genres:
+                genre_weights[genre] = genre_weights.get(genre, 0) + interaction_score
+            
+            # Weight director
+            director_weights[movie.director] = director_weights.get(movie.director, 0) + interaction_score
+            
+            # Weight actors (all 4 stars)
+            for actor in [movie.star1, movie.star2, movie.star3, movie.star4]:
+                if actor:
+                    actor_weights[actor] = actor_weights.get(actor, 0) + interaction_score
+    
+    return {
+        'genres': genre_weights,
+        'directors': director_weights,
+        'actors': actor_weights,
+        'total_positive_interactions': len([m for m in watched_movies 
+                                           if calculate_interaction_score(m, user_id) > 0])
+    }
+```
+
+**Example User Profile**:
+```python
+{
+  'genres': {
+    'Sci-Fi': 2.3,      # Watched 3 Sci-Fi (weighted by ratings)
+    'Thriller': 1.8,
+    'Action': 1.3
+  },
+  'directors': {
+    'Christopher Nolan': 2.3,  # Strong preference!
+    'Martin Scorsese': 0.5
+  },
+  'actors': {
+    'Leonardo DiCaprio': 1.1,
+    'Christian Bale': 0.8
+  },
+  'total_positive_interactions': 5
+}
+```
+
+---
+
+### Step 3: Score Candidate Movies
+
+Calculate recommendation score for each unwatched movie:
+
+```python
+def score_candidate_movie(movie, user_profile):
+    """
+    Calculate how well movie matches user preferences
+    Returns: dict with final_score and breakdown
+    """
+    
+    # 1. GENRE MATCHING (40% weight)
+    genre_score = 0
+    total_genre_weight = sum(user_profile['genres'].values())
+    
+    if total_genre_weight > 0:
+        for genre in movie.genres:
+            if genre in user_profile['genres']:
+                genre_score += user_profile['genres'][genre]
+        genre_score = genre_score / total_genre_weight
+    
+    # 2. DIRECTOR MATCHING (25% weight)
+    director_score = 0
+    total_director_weight = sum(user_profile['directors'].values())
+    
+    if total_director_weight > 0 and movie.director in user_profile['directors']:
+        director_score = user_profile['directors'][movie.director] / total_director_weight
+    
+    # 3. ACTOR MATCHING (20% weight)
+    actor_score = 0
+    total_actor_weight = sum(user_profile['actors'].values())
+    
+    if total_actor_weight > 0:
+        movie_actors = [movie.star1, movie.star2, movie.star3, movie.star4]
+        for actor in movie_actors:
+            if actor and actor in user_profile['actors']:
+                actor_score += user_profile['actors'][actor]
+        actor_score = actor_score / (total_actor_weight * 4)
+    
+    # 4. QUALITY SCORE (15% weight)
+    quality_score = movie.imdb_rating / 10.0
+    
+    # FINAL WEIGHTED SCORE
+    final_score = (
+        genre_score * 0.40 +
+        director_score * 0.25 +
+        actor_score * 0.20 +
+        quality_score * 0.15
+    )
+    
+    return {
+        'movie': movie,
+        'final_score': final_score,
+        'breakdown': {
+            'genre_score': genre_score,
+            'director_score': director_score,
+            'actor_score': actor_score,
+            'quality_score': quality_score
+        }
+    }
+```
+
+**Scoring Formula**:
+```
+Final Score = (Genre Match × 0.40) + (Director Match × 0.25) + 
+              (Actor Match × 0.20) + (IMDB Quality × 0.15)
+
+Where each component score ranges from 0.0 to 1.0
+```
+
+---
+
+### Step 4: Generate Recommendations with Explanations
+
+```python
+def get_recommendations(user_id, num_recommendations=12):
+    """
+    Main recommendation function
+    Returns: dict with recommendations and explanations
+    """
+    # Build user profile
+    user_profile = build_user_profile(user_id)
+    
+    # Check minimum threshold
+    if user_profile['total_positive_interactions'] < 3:
+        return {
+            'success': False,
+            'message': 'Watch or rate at least 3 movies to get recommendations',
+            'current_count': user_profile['total_positive_interactions'],
+            'required_count': 3
+        }
+    
+    # Get all movies
+    all_movies = load_movies()
+    
+    # Get watched movie IDs
+    watched_ids = get_watched_movie_ids(user_id)
+    
+    # Filter to unwatched movies only
+    candidate_movies = [m for m in all_movies if m.id not in watched_ids]
+    
+    # Score each candidate
+    scored_movies = []
+    for movie in candidate_movies:
+        result = score_candidate_movie(movie, user_profile)
+        scored_movies.append(result)
+    
+    # Sort by score (descending)
+    scored_movies.sort(key=lambda x: x['final_score'], reverse=True)
+    
+    # Generate human-readable explanations
+    recommendations = []
+    for item in scored_movies[:num_recommendations]:
+        movie = item['movie']
+        breakdown = item['breakdown']
+        
+        # Build explanation based on highest contributing factors
+        reasons = []
+        
+        if breakdown['genre_score'] > 0.5:
+            top_genres = get_matching_genres(movie, user_profile['genres'])
+            reasons.append(f"You love {', '.join(top_genres[:2])} movies")
+        
+        if breakdown['director_score'] > 0.5:
+            reasons.append(f"You enjoyed other films by {movie.director}")
+        
+        if breakdown['actor_score'] > 0.3:
+            top_actors = get_matching_actors(movie, user_profile['actors'])
+            reasons.append(f"Stars {top_actors[0]} from your favorites")
+        
+        if breakdown['quality_score'] > 0.8:
+            reasons.append(f"Highly rated ({movie.imdb_rating}/10)")
+        
+        recommendations.append({
+            'movie': movie,
+            'score': item['final_score'],
+            'reasons': reasons if reasons else ['Based on your viewing history']
+        })
+    
+    return {
+        'success': True,
+        'recommendations': recommendations,
+        'based_on': {
+            'total_watched': len(watched_ids),
+            'total_rated': get_rating_count(user_id),
+            'total_interactions': len(watched_ids)
+        }
+    }
+```
+
+---
+
+### Algorithm Requirements Summary
+
+✅ **Minimum Interactions**: 3 positive interactions (watches or ratings ≥3★)  
+✅ **Exclude**: Already watched movies  
+✅ **Sort**: By final score (descending)  
+✅ **Return**: Top 10-15 recommendations  
+✅ **Explain**: Show why each movie recommended  
+✅ **Handle Negatives**: Low ratings (1-2★) create negative signals  
+
+---
+
+## BACKEND API ENDPOINTS
+
+### Movies Endpoints
+
+#### GET /api/movies
+Get all movies with optional filtering
+
+**Query Parameters**:
+- `search` (optional): Search term for title
+- `genre` (optional): Filter by genre
+- `year` (optional): Filter by year
+
+**Response**:
+```json
+{
+  "success": true,
+  "count": 50,
+  "movies": [...]
+}
+```
+
+#### GET /api/movies/<movie_id>
+Get single movie details
+
+**Response**:
+```json
+{
+  "success": true,
+  "movie": {
+    "id": "inception_2010",
+    "title": "Inception",
+    ...
+  }
+}
+```
+
+---
+
+### Watch Tracking Endpoints
+
+#### POST /api/watch
+Record watch event
+
+**Request Body**:
+```json
+{
+  "user_id": "user123",
+  "movie_id": "inception_2010",
+  "movie_metadata": {
+    "title": "Inception",
+    "genres": ["Sci-Fi", "Thriller"],
+    "director": "Christopher Nolan",
+    "stars": ["Leonardo DiCaprio", "Joseph Gordon-Levitt"],
+    "imdb_rating": 8.8,
+    "year": 2010
+  },
+  "completed": true,
+  "watch_timestamp": "2024-11-09T14:30:00"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Watch recorded successfully",
+  "prompt_rating": true
+}
+```
+
+#### GET /api/watch-history/<user_id>
+Get user's watch history
+
+**Response**:
+```json
+{
+  "success": true,
+  "user_id": "user123",
+  "total_watched": 8,
+  "movies": [...]
+}
+```
+
+---
+
+### Rating Endpoints
+
+#### POST /api/rate
+Submit or update rating
+
+**Request Body**:
+```json
+{
+  "user_id": "user123",
+  "movie_id": "inception_2010",
+  "rating": 5
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Rating saved successfully"
+}
+```
+
+#### GET /api/ratings/<user_id>
+Get user's ratings
+
+**Response**:
+```json
+{
+  "success": true,
+  "user_id": "user123",
+  "total_ratings": 6,
+  "ratings": [
+    {
+      "movie_id": "inception_2010",
+      "movie_title": "Inception",
+      "rating": 5,
+      "timestamp": "2024-11-09T14:35:00"
+    }
+  ]
+}
+```
+
+---
+
+### Recommendations Endpoint
+
+#### GET /api/recommendations/<user_id>
+Get personalized recommendations
+
+**Response (Success)**:
+```json
+{
+  "success": true,
+  "user_id": "user123",
+  "based_on": {
+    "total_watched": 8,
+    "total_rated": 6,
+    "total_interactions": 8
+  },
+  "recommendations": [
+    {
+      "movie": {
+        "id": "tenet_2020",
+        "title": "Tenet",
+        "year": 2020,
+        "genres": ["Sci-Fi", "Thriller", "Action"],
+        "director": "Christopher Nolan",
+        "imdb_rating": 7.4,
+        "poster_link": "...",
+        ...
+      },
+      "score": 0.89,
+      "reasons": [
+        "You love Sci-Fi, Thriller movies",
+        "You enjoyed other films by Christopher Nolan",
+        "Highly rated (7.4/10)"
+      ]
+    }
+  ]
+}
+```
+
+**Response (Insufficient Data)**:
+```json
+{
+  "success": false,
+  "message": "Watch or rate at least 3 movies to get recommendations",
+  "current_count": 2,
+  "required_count": 3
+}
+```
+
+---
+
+### User Activity Endpoint
+
+#### GET /api/user/<user_id>/activity
+Get user activity summary
+
+**Response**:
+```json
+{
+  "success": true,
+  "user_id": "user123",
+  "stats": {
+    "movies_watched": 8,
+    "movies_rated": 6,
+    "can_get_recommendations": true
+  },
+  "recent_activity": [
+    {
+      "type": "watch",
+      "movie_title": "Tenet",
+      "timestamp": "2024-11-09T14:00:00"
+    },
+    {
+      "type": "rating",
+      "movie_title": "Inception",
+      "rating": 5,
+      "timestamp": "2024-11-09T10:30:00"
+    }
+  ],
+  "top_genres": ["Sci-Fi", "Thriller", "Action"],
+  "favorite_directors": ["Christopher Nolan", "Martin Scorsese"]
+}
+```
+
+---
+
+## JSON FILE STRUCTURES
+
+### movies.json
+```json
+{
+  "movies": [
+    {
+      "id": "inception_2010",
+      "title": "Inception",
+      "year": 2010,
+      "certificate": "PG-13",
+      "runtime": "148 min",
+      "genres": ["Sci-Fi", "Thriller", "Action"],
+      "imdb_rating": 8.8,
+      "overview": "A thief who steals corporate secrets...",
+      "meta_score": 74,
+      "director": "Christopher Nolan",
+      "star1": "Leonardo DiCaprio",
+      "star2": "Joseph Gordon-Levitt",
+      "star3": "Ellen Page",
+      "star4": "Tom Hardy",
+      "no_of_votes": 2000000,
+      "gross": "292,576,195",
+      "poster_link": "https://..."
+    }
+  ]
+}
+```
+
+### watch_history.json
+```json
+{
+  "watch_history": [
+    {
+      "id": 1,
+      "user_id": "user123",
+      "movie_id": "inception_2010",
+      "movie_metadata": {
+        "title": "Inception",
+        "genres": ["Sci-Fi", "Thriller", "Action"],
+        "director": "Christopher Nolan",
+        "stars": ["Leonardo DiCaprio", "Joseph Gordon-Levitt"],
+        "imdb_rating": 8.8,
+        "year": 2010
+      },
+      "watch_timestamp": "2024-11-09T14:30:00",
+      "completed": true
+    }
+  ]
+}
+```
+
+### ratings.json
+```json
+{
+  "ratings": [
+    {
+      "id": 1,
+      "user_id": "user123",
+      "movie_id": "inception_2010",
+      "movie_title": "Inception",
+      "rating": 5,
+      "timestamp": "2024-11-09T14:35:00"
+    }
+  ]
+}
+```
+
+---
+
+## PROJECT STRUCTURE
+
+### Backend Structure
+```
+movie-recommendation-backend/
+│
+├── app.py                      # Main Flask application
+├── requirements.txt            # Python dependencies
+├── .env                        # Environment variables (optional)
+│
+├── data/
+│   ├── movies.json            # Movie dataset (40-50 movies)
+│   ├── ratings.json           # User ratings (initially empty)
+│   └── watch_history.json     # Watch events (initially empty)
+│
+├── models/
+│   └── recommender.py         # Recommendation algorithm
+│
+├── routes/
+│   ├── movies.py              # Movie endpoints
+│   ├── watch.py               # Watch tracking endpoints
+│   ├── ratings.py             # Rating endpoints
+│   └── recommendations.py     # Recommendation endpoint
+│
+└── utils/
+    ├── data_loader.py         # JSON file operations
+    └── helpers.py             # Helper functions
+```
+
+### Frontend Structure
+```
+movie-recommendation-frontend/
+│
+├── public/
+├── src/
+│   ├── components/
+│   │   ├── MovieCard.jsx          # Reusable movie card
+│   │   ├── StarRating.jsx         # 5-star rating widget
+│   │   ├── WatchModal.jsx         # Watch simulation modal
+│   │   ├── RatingPrompt.jsx       # Post-watch rating prompt
+│   │   ├── Header.jsx             # App header
+│   │   └── FilterBar.jsx          # Search and genre filters
+│   │
+│   ├── pages/
+│   │   ├── BrowsePage.jsx         # Home page with movie grid
+│   │   ├── RecommendationsPage.jsx # Recommendations display
+│   │   └── DashboardPage.jsx      # User dashboard (optional)
+│   │
+│   ├── services/
+│   │   └── api.js                 # Axios API calls
+│   │
+│   ├── App.jsx                    # Main app component
+│   ├── App.css                    # Global styles
+│   └── index.js                   # Entry point
+│
+├── package.json
+└── README.md
+```
+
+---
+
+## UI/UX REQUIREMENTS
+
+### Design Guidelines
+
+#### Color Scheme Options
+
+**Option 1: Dark Theme (Netflix-style)**
+```
+Background: #141414
+Cards: #2F2F2F
+Text: #FFFFFF
+Primary Accent: #E50914 (Red)
+Secondary: #B20710
+Hover: #F40612
+```
+
+**Option 2: Light Modern Theme**
+```
+Background: #F5F5F5
+Cards: #FFFFFF
+Text: #1A1A1A
+Primary Accent: #6366F1 (Indigo)
+Secondary: #4F46E5
+Hover: #818CF8
+```
+
+#### Typography
+- Clean, modern font (Roboto, Inter, Open Sans)
+- Heading: 24-32px
+- Body text: 14-16px
+- Clear hierarchy
+
+#### Spacing
+- Card padding: 16px
+- Grid gaps: 20px
+- Section margins: 32px
+- Consistent throughout
+
+#### Interactive Elements
+- Smooth hover effects (transform, shadow)
+- Loading spinners for API calls
+- Toast notifications for success/error
+- Transitions: 0.3s ease
+
+#### Responsive Design
+- Desktop: 3-4 columns
+- Tablet: 2-3 columns
+- Mobile: 1-2 columns (optional)
+- Minimum resolution: 1024x768
+
+### Component Specifications
+
+#### MovieCard Component
+```jsx
+Props:
+- movie (object): Movie data
+- onWatch (function): Watch button handler
+- onRate (function): Rating handler
+- isWatched (boolean): Show watched badge
+- userRating (number): Current user rating (0-5)
+
+Features:
+- Poster image (300px height)
+- Title and year
+- IMDB rating badge
+- Genre tags
+- Watch button (primary)
+- Star rating widget
+- Hover effect with description
+```
+
+#### StarRating Component
+```jsx
+Props:
+- rating (number): Current rating (0-5)
+- onChange (function): Rating change handler
+- readonly (boolean): View only mode
+- size (string): 'small' | 'medium' | 'large'
+
+Features:
+- 5 interactive stars
+- Hover preview
+- Click to rate
+- Visual feedback
+```
+
+#### WatchModal Component
+```jsx
+Props:
+- movie (object): Movie being watched
+- onClose (function): Close handler
+- onComplete (function): Complete handler
+
+Features:
+- Full-screen overlay
+- Movie poster/info
+- Simulated progress bar
+- Control buttons
+- Complete button
+```
+
+#### RatingPrompt Component
+```jsx
+Props:
+- movie (object): Just watched movie
+- onRate (function): Rating submission
+- onSkip (function): Skip rating
+
+Features:
+- Modal overlay
+- Star rating widget
+- Submit button
+- Skip option
+```
+
+---
+
+## IMPLEMENTATION REQUIREMENTS
+
+### 1. User Identification
+- Use fixed user_id: `"user123"`
+- Store in browser localStorage
+- Include in all API requests
+- No authentication/login needed
+
+### 2. Data Initialization
+- Create empty `ratings.json`: `{"ratings": []}`
+- Create empty `watch_history.json`: `{"watch_history": []}`
+- Convert CSV dataset to `movies.json`
+- Include 40-50 diverse movies
+
+### 3. Error Handling
+- Handle API failures gracefully
+- User-friendly error messages
+- Validate inputs (ratings 1-5)
+- Handle edge cases:
+  - No movies found
+  - Empty search results
+  - API timeout
+  - Insufficient data for recommendations
+  - All movies watched
+
+### 4. Performance
+- Recommendation calculation < 2 seconds
+- Efficient data structures
+- Cache user profiles (optional)
+- Lazy loading for large datasets
+
+### 5. Code Quality
+- Well-commented algorithm code
+- Meaningful variable names
+- Python PEP 8 style guide
+- React best practices (hooks, functional components)
+- Consistent formatting
+
+### 6. Testing Requirements
+- Test with multiple user scenarios
+- Verify recommendation accuracy
+- Test edge cases
+- Browser compatibility (Chrome, Firefox, Edge)
+- API endpoint testing (Postman)
+
+---
+
+## EDGE CASES TO HANDLE
+
+### 1. Insufficient Data
+```
+User has < 3 interactions
+→ Display: "Watch or rate at least 3 movies to get recommendations"
+→ Show progress: "2/3 interactions"
+→ Disable "Get Recommendations" button
+```
+
+### 2. All Movies Watched
+```
+User watched all movies in dataset
+→ Display: "You've watched everything! Check back for new additions."
+→ Show: "Your Favorites" section with highest-rated movies
+```
+
+### 3. No Positive Interactions
+```
+User watched 5 movies, all rated 1-2 stars
+→ Cannot build positive preference profile
+→ Display: Popular movies (highest IMDB ratings)
+→ Message: "Try rating some movies 4-5 stars for better recommendations"
+```
+
+### 4. Tie Scores
+```
+Two movies have identical recommendation score
+→ Use IMDB rating as tiebreaker (higher first)
+→ If still tied, use release year (newer first)
+```
+
+### 5. Empty Search Results
+```
+User searches for non-existent movie
+→ Display: "No movies found matching '[search term]'"
+→ Show "Clear search" button
+→ Suggest: "Try different keywords"
+```
+
+### 6. API Failure
+```
+Backend unavailable or request fails
+→ Display: "Unable to load recommendations. Please try again."
+→ Show retry button
+→ Don't crash the app
+→ Log error for debugging
+```
+
+### 7. No Matching Genre Filter
+```
+User selects multiple incompatible genres
+→ Display: "No movies found with these genres"
+→ Show selected filters
+→ Suggest: "Try fewer filters"
+```
+
+### 8. Conflicting Preferences
+```
+User likes both Horror and Romance (rare combo)
+→ Algorithm should handle gracefully
+→ Find best matches or diversify recommendations
+→ Weight by individual genres if no combo exists
+```
+
+---
+
+## SAMPLE MOVIE DATA
+
+Include these movies to ensure comprehensive testing:
+
+### Christopher Nolan Movies (Director Pattern Testing)
+- Inception (2010) - Sci-Fi, Thriller, Action
+- The Dark Knight (2008) - Action, Crime, Drama
+- Interstellar (2014) - Sci-Fi, Drama, Adventure
+- Tenet (2020) - Sci-Fi, Thriller, Action
+- The Prestige (2006) - Thriller, Mystery, Drama
+- Dunkirk (2017) - War, Drama, History
+- Memento (2000) - Thriller, Mystery
+- Batman Begins (2005) - Action, Crime, Drama
+
+### Leonardo DiCaprio Movies (Actor Pattern Testing)
+- Inception (2010)
+- Shutter Island (2010) - Thriller, Mystery
+- The Wolf of Wall Street (2013) - Comedy, Crime, Drama
+- Django Unchained (2012) - Western, Drama
+- The Revenant (2015) - Drama, Adventure, Thriller
+- Titanic (1997) - Romance, Drama
+
+### Genre Diversity
+**Action:**
+- John Wick (2014)
+- Mad Max: Fury Road (2015)
+- Mission: Impossible - Fallout (2018)
+
+**Comedy:**
+- The Hangover (2009)
+- Superbad (2007)
+- 21 Jump Street (2012)
+
+**Horror:**
+- The Conjuring (2013)
+- Get Out (2017)
+- A Quiet Place (2018)
+
+**Romance:**
+- The Notebook (2004)
+- La La Land (2016)
+- Pride and Prejudice (2005)
+
+**Drama:**
+- The Shawshank Redemption (1994)
+- Forrest Gump (1994)
+- The Godfather (1972)
+
+**Sci-Fi:**
+- The Matrix (1999)
+- Blade Runner 2049 (2017)
+- Arrival (2016)
+
+---
+
+## PYTHON DEPENDENCIES
+
+### requirements.txt
+```
+Flask==2.3.3
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+pandas==2.0.3
+```
+
+Keep dependencies minimal for simplicity.
+
+---
+
+## REACT DEPENDENCIES
+
+### package.json (dependencies)
+```json
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.15.0",
+    "axios": "^1.5.0"
+  }
+}
+```
+
+For styling:
+- Plain CSS (simplest)
+- Tailwind CSS (modern, recommended)
+
+---
+
+## DELIVERABLES
+
+### 1. Complete Backend Code
+- ✅ `app.py` with Flask setup and all routes
+- ✅ `recommender.py` with full algorithm implementation
+- ✅ Sample `movies.json` with 40-50 movies
+- ✅ Empty `ratings.json`: `{"ratings": []}`
+- ✅ Empty `watch_history.json`: `{"watch_history": []}`
+- ✅ `requirements.txt` with dependencies
+- ✅ Well-commented code explaining algorithm
+
+### 2. Complete Frontend Code
+- ✅ All React components (MovieCard, StarRating, WatchModal, etc.)
+- ✅ BrowsePage with search, filter, movie grid
+- ✅ RecommendationsPage with history and recommendations
+- ✅ API integration using Axios
+- ✅ Styling (CSS or Tailwind)
+- ✅ `package.json`
+
+### 3. README.md Documentation
+Must include:
+
+```markdown
+# Movie Recommendation System
+
+## Overview
+Brief description of the project and its features.
+
+## Technology Stack
+- Frontend: React.js
+- Backend: Python Flask
+- Storage: JSON files
+
+## Setup Instructions
+
+### Backend Setup
+1. Install Python 3.8+
+2. Create virtual environment:
+   ```bash
+   python -m venv venv
+   ```
+3. Activate virtual environment:
+   - Windows: `venv\Scripts\activate`
+   - Mac/Linux: `source venv/bin/activate`
+4. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Run backend:
+   ```bash
+   python app.py
+   ```
+6. Backend runs on: http://localhost:5000
+
+### Frontend Setup
+1. Install Node.js 14+
+2. Navigate to frontend folder
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Run development server:
+   ```bash
+   npm start
+   ```
+5. Frontend runs on: http://localhost:3000
+
+## Testing the Application
+1. Browse movies on home page
+2. Use search and genre filters
+3. Click "Watch" on 3-4 movies
+4. Rate movies (optional)
+5. Navigate to "Recommendations" page
+6. View personalized recommendations with explanations
+
+## How the Algorithm Works
+
+### Algorithm Overview
+The system uses enhanced content-based filtering that combines:
+- Genre matching (40%)
+- Director matching (25%)
+- Actor matching (20%)
+- IMDB quality score (15%)
+
+### Interaction Scoring
+- Watch + Rate 5 stars = 1.0 (strongest positive)
+- Watch + Rate 4 stars = 0.8
+- Watch only = 0.5
+- Watch + Rate 1-2 stars = negative (avoid similar)
+
+### Example Calculation
+[Include step-by-step example with sample data]
+
+## Project Structure
+[Folder structure explanation]
+
+## Features
+- Browse and search movies
+- Simulated watch tracking
+- 5-star rating system
+- Personalized recommendations
+- Recommendation explanations
+- Watch history tracking
+
+## API Endpoints
+- GET /api/movies - Get all movies
+- POST /api/watch - Record watch event
+- POST /api/rate - Submit rating
+- GET /api/recommendations/<user_id> - Get recommendations
+
+## Future Enhancements
+- Collaborative filtering
+- Real video integration
+- User authentication
+- Social features (sharing, reviews)
+```
+
+### 4. Algorithm Documentation
+Separate explanation including:
+- Step-by-step algorithm walkthrough
+- Why these weights (40%, 25%, 20%, 15%)
+- How interaction scores calculated
+- Example calculation with real data
+- Edge case handling
+- Performance considerations
+
+### 5. Sample Data Files
+- Properly formatted `movies.json`
+- All required fields populated
+- Diverse genres and directors
+- Clean data (no missing values)
+
+---
+
+## IMPLEMENTATION TIMELINE
+
+### Phase 1: Backend Setup (Week 1)
+**Day 1-2:**
+- Set up Flask project structure
+- Install dependencies
+- Create basic app.py with CORS
+- Test basic endpoint
+
+**Day 3-4:**
+- Convert CSV to movies.json
+- Create empty ratings.json and watch_history.json
+- Implement movies endpoints (GET)
+- Test with Postman
+
+**Day 5-7:**
+- Implement watch tracking endpoint
+- Implement rating endpoints
+- Implement user activity endpoint
+- Test all endpoints
+
+### Phase 2: Recommendation Algorithm (Week 2)
+**Day 1-3:**
+- Implement interaction scoring function
+- Implement user profile building
+- Test with sample data
+
+**Day 4-6:**
+- Implement candidate scoring function
+- Implement main recommendation function
+- Add explanation generation
+- Test algorithm accuracy
+
+**Day 7:**
+- Create recommendations endpoint
+- End-to-end backend testing
+- Bug fixes
+
+### Phase 3: Frontend Development (Week 3)
+**Day 1-2:**
+- Set up React project
+- Create component structure
+- Set up routing
+- Create API service
+
+**Day 3-4:**
+- Build BrowsePage
+- Create MovieCard component
+- Implement search and filters
+- Connect to backend API
+
+**Day 5-6:**
+- Create WatchModal component
+- Implement watch functionality
+- Create StarRating component
+- Implement rating functionality
+
+**Day 7:**
+- Create RatingPrompt component
+- Test watch → rate flow
+- Bug fixes
+
+### Phase 4: Recommendations UI (Week 4)
+**Day 1-3:**
+- Build RecommendationsPage
+- Display user watch history
+- Display recommendations
+- Show recommendation reasons
+
+**Day 4-5:**
+- Styling and animations
+- Loading states
+- Error handling
+- Toast notifications
+
+**Day 6:**
+- Complete testing
+- Browser compatibility
+- Performance optimization
+- Bug fixes
+
+**Day 7:**
+- Write documentation
+- README file
+- Algorithm explanation
+- Final polish
+
+---
+
+## TESTING CHECKLIST
+
+### Functional Testing
+- [ ] Movies display correctly on browse page
+- [ ] Search filters movies by title
+- [ ] Genre filter works (single and multiple)
+- [ ] Watch button records event
+- [ ] Watch modal appears and functions
+- [ ] Rating prompt appears after watching
+- [ ] Rating submission works
+- [ ] Can rate without watching
+- [ ] Can update existing rating
+- [ ] Recommendations appear after 3 interactions
+- [ ] Recommendations are relevant
+- [ ] Recommendation reasons are accurate
+- [ ] Watched movies excluded from recommendations
+- [ ] Rated movies show filled stars
+- [ ] Watched movies show badge
+
+### Algorithm Testing
+- [ ] Rate 3 action movies → Get action recommendations
+- [ ] Rate Nolan movies → Get more Nolan movies
+- [ ] Watch without rating → Still influences recommendations
+- [ ] Rate movie 1-2 stars → Similar movies downranked
+- [ ] Mixed genre preferences → Diverse recommendations
+- [ ] All movies watched → Appropriate message
+
+### Edge Cases
+- [ ] < 3 interactions → Appropriate message
+- [ ] Empty search → No results message
+- [ ] No genre matches → Helpful message
+- [ ] API failure → Error handling
+- [ ] Slow network → Loading indicators
+
+### UI/UX Testing
+- [ ] Hover effects work
+- [ ] Animations smooth
+- [ ] Responsive on different screens
+- [ ] Loading spinners appear
+- [ ] Error messages clear
+- [ ] Navigation intuitive
+
+### Browser Compatibility
+- [ ] Chrome
+- [ ] Firefox
+- [ ] Edge
+- [ ] Safari (optional)
+
+---
+
+## SUCCESS CRITERIA
+
+The project is successful if:
+
+1. ✅ All functional requirements implemented
+2. ✅ User can browse 40+ movies
+3. ✅ Search and filters work accurately
+4. ✅ Watch tracking records metadata correctly
+5. ✅ Rating system works smoothly
+6. ✅ Recommendations generated after 3 interactions
+7. ✅ Recommendations are relevant and personalized
+8. ✅ Recommendation reasons displayed
+9. ✅ UI is clean, modern, and intuitive
+10. ✅ All API endpoints function correctly
+11. ✅ Application handles errors gracefully
+12. ✅ Performance meets requirements (< 2s for recommendations)
+13. ✅ Code is well-documented
+14. ✅ Setup instructions are clear
+15. ✅ Algorithm is explainable and accurate
+
+---
+
+## ADDITIONAL FEATURES (Optional - If Time Permits)
+
+These are NOT required but would enhance the project:
+
+### 1. User Dashboard
+- Statistics (total watched, rated, favorite genres)
+- Pie chart of genre distribution
+- Recent activity timeline
+- Quick access to recommendations
+
+### 2. Movie Detail Modal
+- Full description
+- Cast and crew
+- Runtime, certificate
+- Similar movies section
+- Trailer link (if available)
+
+### 3. Export Features
+- Download watch history as CSV
+- Download recommendations as PDF
+- Share recommendations
+
+### 4. Dark/Light Mode Toggle
+- Theme switcher
+- Persist preference in localStorage
+- Smooth transition
+
+### 5. Advanced Filters
+- Year range slider
+- Rating range filter
+- Runtime filter
+- Multiple genre combination
+
+### 6. Watchlist Feature
+- "Add to Watchlist" button
+- Separate watchlist page
+- Different from watched movies
+
+### 7. Sorting Options
+- Sort by: Year, Rating, Title, Popularity
+- Ascending/descending toggle
+
+### 8. Social Features (Advanced)
+- Share recommendations
+- Movie reviews
+- User profiles
+
+---
+
+## PRESENTATION GUIDELINES
+
+When presenting to professors, emphasize:
+
+### 1. Problem Statement
+- Traditional systems rely only on explicit ratings
+- Many users watch but don't rate
+- Missing implicit signals limits accuracy
+
+### 2. Solution Approach
+- **Hybrid feedback system**: Combines watches (implicit) + ratings (explicit)
+- **Multi-factor algorithm**: Genre, Director, Actor, Quality
+- **Weighted scoring**: Prioritizes most important factors
+- **Explainable AI**: Shows why movies recommended
+
+### 3. Technical Highlights
+- Full-stack architecture (React + Flask)
+- RESTful API design
+- Efficient JSON-based storage
+- Real-time recommendation calculation
+- Content-based filtering algorithm
+
+### 4. Algorithm Innovation
+- Four-dimensional matching (not just genre)
+- Interaction strength weighting
+- Handles positive AND negative signals
+- Minimum threshold prevents poor recommendations
+
+### 5. Live Demo Flow
+1. Show browsing and filtering
+2. Watch 3 movies (different genres)
+3. Rate some movies
+4. Navigate to recommendations
+5. Explain each recommendation reason
+6. Show how new rating updates recommendations
+
+### 6. Real-World Relevance
+- Netflix tracks views + ratings
+- YouTube uses watch time + likes/dislikes
+- Amazon uses purchase + browse history
+- System mimics industry-standard approaches
+
+### 7. Results & Accuracy
+- Show test cases with expected outcomes
+- Demonstrate personalization
+- Explain how accuracy improves with more data
+
+### 8. Challenges Faced
+- Cold start problem (new users)
+- Balancing multiple factors
+- Handling negative feedback
+- Performance optimization
+
+### 9. Future Enhancements
+- Collaborative filtering (user-user similarity)
+- Machine learning integration
+- Real-time streaming integration
+- Mobile application
+- Social features
+
+---
+
+## IMPORTANT NOTES
+
+### Critical Requirements
+1. **Fixed User ID**: Use `"user123"` - no authentication needed
+2. **Simulated Watch**: Not real video player - just modal
+3. **Metadata Capture**: Store complete movie info on watch
+4. **Algorithm Priority**: This is the core - must work perfectly
+5. **Explainability**: Always show WHY movie recommended
+6. **Dataset**: Use only provided CSV - no external APIs
+7. **JSON Storage**: No database required
+8. **Minimum 3 Interactions**: Enforce this rule
+9. **Negative Signals**: Low ratings create avoidance patterns
+10. **Diverse Recommendations**: Don't recommend only one type
+
+### Code Quality Standards
+- **Comments**: Explain complex algorithm sections
+- **Naming**: Clear, descriptive variable/function names
+- **Structure**: Organized, modular code
+- **Formatting**: Consistent throughout
+- **Error Handling**: Graceful failures with user feedback
+
+### Performance Requirements
+- Recommendation calculation: < 2 seconds
+- Page load time: < 3 seconds
+- API response time: < 1 second
+- Search response: Real-time or < 500ms
+
+### Documentation Requirements
+- README with complete setup instructions
+- Algorithm explanation with examples
+- API endpoint documentation
+- Code comments for complex logic
+- Project structure explanation
+
+---
+
+## CONSTRAINTS & ASSUMPTIONS
+
+### Constraints
+- Project timeline: 4 weeks
+- No real authentication (simple username only)
+- Static movie dataset (no admin panel needed)
+- No payment/subscription features
+- Deployment optional for college project
+- Desktop-focused (mobile optional)
+
+### Assumptions
+- Users have basic internet connectivity
+- Modern browser (Chrome, Firefox, Edge)
+- Movie dataset pre-populated
+- Users understand basic UI patterns
+- Rating scale (1-5 stars) is intuitive
+- Single user system (multi-user optional)
+
+---
+
+## BUILD INSTRUCTIONS FOR AI AGENT
+
+### Step-by-Step Build Process
+
+**STEP 1: Backend Setup**
+- Create Flask application structure
+- Set up CORS
+- Create folder structure (data/, models/, routes/, utils/)
+- Create requirements.txt
+- Test basic Flask server runs
+
+**STEP 2: Data Preparation**
+- Convert provided CSV to movies.json format
+- Include 40-50 diverse movies
+- Create empty ratings.json: `{"ratings": []}`
+- Create empty watch_history.json: `{"watch_history": []}`
+- Validate JSON structure
+
+**STEP 3: Movies API**
+- Implement GET /api/movies with search/filter
+- Implement GET /api/movies/<movie_id>
+- Test endpoints with Postman
+- Add error handling
+
+**STEP 4: Watch & Rating APIs**
+- Implement POST /api/watch
+- Implement POST /api/rate
+- Implement GET /api/watch-history/<user_id>
+- Implement GET /api/ratings/<user_id>
+- Test all endpoints
+
+**STEP 5: Recommendation Algorithm**
+- Create recommender.py in models/
+- Implement calculate_interaction_score()
+- Implement build_user_profile()
+- Implement score_candidate_movie()
+- Implement get_recommendations()
+- Add extensive comments
+- Test with sample data
+
+**STEP 6: Recommendations Endpoint**
+- Implement GET /api/recommendations/<user_id>
+- Connect to recommender.py
+- Add recommendation explanations
+- Test accuracy with different user scenarios
+
+**STEP 7: Frontend Setup**
+- Create React app structure
+- Set up React Router
+- Create api.js service with Axios
+- Set up basic routing
+
+**STEP 8: Browse Page**
+- Create MovieCard component
+- Create BrowsePage with grid layout
+- Implement search functionality
+- Implement genre filters
+- Connect to backend API
+- Add loading states
+
+**STEP 9: Watch Feature**
+- Create WatchModal component
+- Implement watch button functionality
+- Call POST /api/watch
+- Show completion confirmation
+
+**STEP 10: Rating Feature**
+- Create StarRating component
+- Create RatingPrompt component
+- Implement rating submission
+- Handle rating updates
+- Call POST /api/rate
+
+**STEP 11: Recommendations Page**
+- Create RecommendationsPage component
+- Display user watch history
+- Fetch and display recommendations
+- Show recommendation reasons
+- Add refresh functionality
+
+**STEP 12: Styling & Polish**
+- Apply consistent color scheme
+- Add hover effects and animations
+- Implement loading spinners
+- Add error notifications
+- Responsive layout adjustments
+
+**STEP 13: Testing**
+- Test all user flows
+- Test edge cases
+- Browser compatibility testing
+- Performance testing
+- Bug fixes
+
+**STEP 14: Documentation**
+- Write comprehensive README
+- Document algorithm with examples
+- Add code comments
+- Create setup instructions
+- Include testing guide
+
+---
+
+## FINAL DELIVERABLES CHECKLIST
+
+### Code Files
+- [ ] app.py (Flask backend)
+- [ ] recommender.py (algorithm)
+- [ ] All route files (movies.py, watch.py, ratings.py, recommendations.py)
+- [ ] Utility files (data_loader.py, helpers.py)
+- [ ] movies.json (40-50 movies)
+- [ ] Empty ratings.json
+- [ ] Empty watch_history.json
+- [ ] requirements.txt
+- [ ] All React components
+- [ ] API service file
+- [ ] Styling files
+- [ ] package.json
+
+### Documentation
+- [ ] README.md with setup instructions
+- [ ] Algorithm explanation document
+- [ ] API endpoint documentation
+- [ ] Code comments throughout
+- [ ] Project structure explanation
+
+### Testing
+- [ ] All features working
+- [ ] Edge cases handled
+- [ ] Browser compatibility verified
+- [ ] Performance requirements met
+- [ ] No console errors
+
+### Presentation Materials
+- [ ] PowerPoint slides (12-15 slides)
+- [ ] Live demo prepared
+- [ ] Algorithm explanation ready
+- [ ] Screenshots captured
+- [ ] Q&A preparation
+
+---
+
+## END OF REQUIREMENTS
+
+This document contains all specifications needed to build a complete, functional Movie Recommendation System for a college project. Follow the requirements carefully to ensure all features are implemented correctly.
+
+**Good luck with your project! 🎬✨**
